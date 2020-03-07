@@ -1,0 +1,42 @@
+// This exists in the browser.
+var clientList = [0, 1, 2, 3];
+print(clientList);
+print('type:', typeof clientList);
+print('Is this an EE object?', clientList instanceof ee.ComputedObject);
+
+// This is a handle for some object in the cloud (EE servers).
+var serverList = ee.List(clientList);
+print(serverList); // They look the same!
+print('type:', typeof serverList);
+print('Is this an EE object?', serverList instanceof ee.ComputedObject);
+
+var anotherList = ee.List.sequence(0, 3);
+print(anotherList); // Also the same!
+
+// Client-side objects are mutable.
+clientList.push(4);
+print(clientList);
+
+// That won't work on the server list.
+// serverList.push(4);
+
+// Note the add() method.  Use the docs tab to discover
+// methods on server objects.  Also note that you need to
+// capture the new object in a variable.
+var longerList = serverList.add(4);
+print(longerList);
+
+// Image example:
+var constantImage = ee.Image(13);
+
+// This is NOT what you want:
+var junkString = constantImage + 42;
+// Note that the browser calls toString() on the object and
+// then appends '42' to it.  The JSON you see contains the
+// instructions sent to the server to execute your code.
+print('junkString:', junkString);
+
+// This is the right way:
+var someImage = constantImage.add(42);
+// Click with the inspector to observe.
+Map.addLayer(someImage, {}, 'someImage');
