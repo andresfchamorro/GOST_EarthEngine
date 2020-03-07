@@ -1,0 +1,70 @@
+/**** Start of imports. If edited, may not auto-convert in the playground. ****/
+var bbox = 
+    /* color: #0b4a8b */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[63.736077587970726, 32.14720894605567],
+          [63.736077587970726, 31.087714155769135],
+          [65.42522553718948, 31.087714155769135],
+          [65.42522553718948, 32.14720894605567]]], null, false);
+/***** End of imports. If edited, may not auto-convert in the playground. *****/
+
+// bbox is just a rectangle polygon that we will use as our extent
+print(bbox);
+Map.centerObject(bbox);
+// Map.addLayer(bbox, {color:'teal'}, 'AOI');
+
+// How much crop area per district?
+
+// 1. Import Datasets
+
+// Shapefile GAUL Level 2
+var districts = ee.FeatureCollection("FAO/GAUL/2015/level2").filterBounds(bbox);
+// Map.addLayer(districts, {}, 'dists');
+
+var crops = ee.Image('USGS/GFSAD1000_V1');
+
+// see dataset info, 0 is non-croplands
+var crop_mask = crops.gt(0).clip(districts);
+Map.addLayer(crop_mask, {}, 'Crop Mask');
+
+// read docs on update mask:
+// New mask for the image, as a floating-point value in the range [0, 1] (invalid = 0, valid = 1)
+var bool = ee.Image(1);
+var area_crop = bool.updateMask(crop_mask).multiply(ee.Image.pixelArea());
+// Map.addLayer(area_crop, {}, 'Crop Mask - area');
+
+var ZonalStats = function(feature) {
+
+  var sum_cropland = area_crop.reduceRegion({
+    reducer: ee.Reducer.sum(),
+    geometry: feature.geometry(),
+    scale: 30,
+    maxPixels: 10e15
+  }).get('constant');
+
+  return feature.set(
+    ee.String("Area"),feature.area(),
+    ee.String("Area_Cropland"),sum_cropland
+  );
+
+};
+
+var mappedReduction = districts.map(ZonalStats);
+print(mappedReduction);
+
+
+// Export.table.toDrive({
+//   collection: mappedReduction,
+//   description: 'area_cropland',
+//   fileFormat: 'CSV'
+// });
+
+
+// More: Get area for Built up (GHSL) or forest cover (Hansen)
+
+// add more code here?
