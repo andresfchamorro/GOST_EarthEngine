@@ -1,0 +1,126 @@
+
+// Create data source references
+
+// Ethiopia AOIs
+var AOIs = ee.FeatureCollection('users/afche18/Ethiopia_AOI').filterMetadata('Id','equals',1);
+// print(AOIs);
+// Map.addLayer(AOIs, {}, 'AOIs');
+var plots = ee.FeatureCollection('users/afche18/Farms_prob');
+// Map.addLayer(plots, {}, 'Plots');
+
+// NDVI Datasets
+var sentinel = ee.ImageCollection('COPERNICUS/S2').filterBounds(AOIs);
+
+// var scene = sentinel.first();
+// var scene = sentinel.filterDate('2019-02-11','2019-02-12').first();
+// print(scene);
+
+// Overlay AOIs and crop mask
+// var vis = {min:0, max:2000, gamma:1, bands: ['B4', 'B3', 'B2']};
+// var vis2 = {min:0, max:1, gamma:1, bands: ['B4', 'B3', 'B2']};
+
+// var scene = sentinel.sort('CLOUDY_PIXEL_PERCENTAGE',true).first();
+
+// Map.addLayer(scene, vis, "Sentinel");
+//
+// Functions applied to each image (add timetamp, source, and mask by cropland)
+
+
+var PrepareSentinel = function(image) {
+  
+  var qa = image.select('QA60');
+  
+  var cloudBitMask = 1 << 10;
+  var cirrusBitMask = 1 << 11;
+
+  var mask = qa.bitwiseAnd(cloudBitMask).eq(0)
+    .and(qa.bitwiseAnd(cirrusBitMask).eq(0));
+  
+  var ndvi = image.clip(plots)
+  .updateMask(mask)
+  .divide(10000)
+  .normalizedDifference(['B8', 'B4']).rename('NDVI')
+  .set('date', image.date().format("YYYY_MM_dd"))
+  .set('source', 'sentinel');
+  return ndvi;
+  
+};
+
+// var maskedScene = PrepareSentinel(scene);
+// Map.addLayer(maskedScene, {}, "Sentinel Masked");
+
+var sentinel_clipped = sentinel.map(PrepareSentinel);
+
+// Sentinel images need to be re-arranged and turned into a mosaic by unique dates 
+
+var dates = sentinel
+    .map(function(image) {
+      return ee.Feature(null, {'date': image.date().format('YYYY_MM_dd')})
+    })
+    .distinct('date')
+    .aggregate_array('date');
+
+var sentinel_mosaic = ee.ImageCollection.fromImages(
+  ee.List(dates).map(function(date) {
+    return sentinel_clipped.filterMetadata('date', 'equals', date).mosaic()
+    .set('date', date)
+    .set('source', 'sentinel');
+  })
+);
+// print(dates);
+
+// Find out how many images we have: 655
+// print(sentinel_mosaic);
+var images_list = sentinel_mosaic.toList(sentinel_mosaic.size());
+
+var reducer_pct = ee.Reducer.percentile([25,75], null, null, null, null)
+
+// Combine the mean and standard deviation and pctiles reducers.
+var reducers = ee.Reducer.mean().combine({
+  reducer2: ee.Reducer.stdDev(),
+  sharedInputs: true
+});
+
+
+// Get Zonal Stats 
+var ZonalStats = function(feature) {
+  
+  for (var i = 0; i < 439; i++){
+    
+    var image = ee.Image(images_list.get(i));
+    var date = ee.String(image.get('date'));
+    var source = ee.String(image.get('source'));
+    
+    // Just getting mean but could be combined reducer with percentiles/max
+    var stats = image.reduceRegion({
+      reducer: reducers,
+      geometry: feature.geometry(),
+      scale: 10,
+      maxPixels: 10e15
+    });
+    
+    var stat_mean = stats.get('NDVI_mean');
+    var stat_sd = stats.get('NDVI_stdDev');
+    
+    var name_mean = ee.String("mean_").cat(source).cat("__").cat(date);
+    var name_sd = ee.String("sd_").cat(source).cat("__").cat(date);
+    
+    feature = feature.set(
+      name_mean, stat_mean,
+      name_sd, stat_sd
+    );
+    
+  }
+  
+  return feature;
+  
+}
+
+// var mappedReduction = AOIs.map(ZonalStats);
+// print(mappedReduction);
+
+// Export.table.toDrive({
+//   collection: mappedReduction,
+//   description: 'Ethiopia_AOIs_NDVI_Sentinel_Cloud',
+//   fileFormat: 'CSV'
+// });
