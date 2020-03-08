@@ -1,0 +1,73 @@
+
+// Create data source references
+//
+// Ethiopia AOIs
+var AOIs = ee.FeatureCollection('users/afche18/Ethiopia_AOI');
+
+// NDVI Datasets
+var terra = ee.ImageCollection('MODIS/006/MOD13Q1').select('NDVI').filter(ee.Filter.calendarRange(2012, 2020, 'year'));
+var aqua = ee.ImageCollection('MODIS/006/MYD13Q1').select('NDVI').filter(ee.Filter.calendarRange(2012, 2020, 'year'));
+var modis = terra.merge(aqua);
+
+// Crop mask product
+var cropland = ee.Image('USGS/GFSAD1000_V1');
+var crop_mask = cropland.eq(0);
+
+// Functions applied to each image (add timetamp, source, and mask by cropland)
+// .updateMask(crop_mask.not())
+var PrepareModis = function(image) {
+  return image.clip(AOIs).multiply(0.0001)
+  .set('date', image.date().format("YYYY_MM_dd"))
+  .set('source', 'modis');
+};
+var modis_clipped = modis.map(PrepareModis);
+
+// Find out how many images we have: 187
+var images_list = modis_clipped.toList(modis_clipped.size());
+print(images_list.length());
+
+// Get Zonal Stats 
+var ZonalStats = function(feature) {
+  
+  for (var i = 0; i < 355; i++){
+    
+    var image = ee.Image(images_list.get(i));
+    var date = ee.String(image.get('date'));
+    var source = ee.String(image.get('source'));
+    
+    // Just getting mean but could be combined reducer with percentiles/max
+    var stat_mean = image.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: feature.geometry(),
+      scale: 250,
+      maxPixels: 10e15
+    }).get('NDVI');
+    
+    var name_mean = ee.String("NDVI_").cat(source).cat("__").cat(date);
+    
+    feature = feature.set(
+      name_mean, stat_mean
+    );
+    
+  }
+  
+  return feature;
+  
+}
+
+var mappedReduction = AOIs.map(ZonalStats);
+// print(mappedReduction);
+
+Export.table.toDrive({
+  collection: mappedReduction,
+  description: 'Ethiopia_AOIs_NDVI_Modis_NoMask',
+  fileFormat: 'CSV'
+});
+
+// var AOI_1 = AOIs.filter(ee.Filter.eq('Id', 0));
+// var AOI_2 = AOIs.filter(ee.Filter.eq('Id', 1));
+// var sentinel_AOI_1 = sentinel.filterBounds(AOI_1).sort('system:time_start', true);
+// var sentinel_AOI_2 = sentinel.filterBounds(AOI_2).sort('system:time_start', true);
+// print(sentinel_AOI_1);
+// print(sentinel_AOI_2);
+// .set('date', ee.Date(image.get('system:time_end')).format("YYYY-MM-dd"));
