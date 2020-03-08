@@ -1,6 +1,6 @@
 # GOST_EarthEngine
 
-This repository contains resources and examples of our use of Google Earth Engine. So far, our implementations focus on the following tasks:
+This repository contains resources and examples of our use of Google Earth Engine. So far, our implementations have focused on the following tasks:
 
 1. Zonal Statistics
     - *ZonalStats* (Area by land cover)
@@ -9,7 +9,7 @@ This repository contains resources and examples of our use of Google Earth Engin
 
 2. Land cover classification
     - *CropClassification_BGD*
-    
+
 3. Flood detection
 
 Use the following link to open all folders directly on GEE: https://code.earthengine.google.com/?accept_repo=users/afche18/GOST_gee

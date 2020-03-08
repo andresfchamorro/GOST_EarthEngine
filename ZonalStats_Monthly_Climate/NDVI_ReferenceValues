@@ -12,14 +12,7 @@ var crop_dom = ee.Image("USGS/GFSAD1000_V0"),
 /***** End of imports. If edited, may not auto-convert in the playground. *****/
 //    1. Import
 //
-// var g2_sim = ee.FeatureCollection('ft:1SwDJ-YIHeN2Lqv14pkBRlrWnpO7Vzq6bu90cEq2q');
-// var sahel_adm2 = ee.FeatureCollection('ft:1Km2OVbA2b7AhZfxMP0Pxq3xE3H-JS_3K6_OJ18V8');
-// var gadm_adm2 = ee.FeatureCollection('ft:1GdU_RjSazVOZ587r6eQbOfJi3SsdwN8g9SbQ0x8l');
 var ndviCol = ee.ImageCollection(terra_16day).select('NDVI');
-//var Artemis_districts = ee.FeatureCollection('ft:1f6dIWPjdRWXvgGvm8V8xQNKS90BystFeh4ETKwKu');
-//var Yemen_districts = ee.FeatureCollection(yemen);
-//var districts = ee.FeatureCollection('users/afche18/GAUL_2_sel');
-//var districts = ee.FeatureCollection('users/afche18/Artemis_May');
 var districts = ee.FeatureCollection('users/afche18/Artemis_Merge_May');
 
 //    2. Mask cropland
@@ -89,22 +82,22 @@ print(byMonthRef_All_mean)
 var ZonalStatsRef = function(feature) {
 
   for (var i = 0; i < 12; i++) {
-    
+
     var i_string = ee.String(ee.Number(i));
-    
+
     var image_all_mean = ee.Image(byMonthRef_All_mean.filterMetadata('system:index','equals',i_string).first());
     var image_crop_mean = ee.Image(byMonthRef_Crop_mean.filterMetadata('system:index','equals',i_string).first());
     var image_pas_mean = ee.Image(byMonthRef_Pas_mean.filterMetadata('system:index','equals',i_string).first());
 
     var month = ee.String(ee.Number(image_all_mean.get('month')).int());
-      
+
     var stat_mean_all = image_all_mean.reduceRegion({
       reducer: ee.Reducer.mean(),
       geometry: feature.geometry(),
       scale: 250,
       maxPixels:10e15
     }).get('NDVI');
-    
+
     var stat_mean_crop = image_crop_mean.reduceRegion({
       reducer: ee.Reducer.mean(),
       geometry: feature.geometry(),
@@ -118,13 +111,13 @@ var ZonalStatsRef = function(feature) {
       scale: 250,
       maxPixels:10e15
     }).get('NDVI');
-    
+
 
     var nameAll_mean = ee.String("NdviAllRef_mean__").cat(month);
     var nameCrop_mean = ee.String("NdviCropRef_mean__").cat(month);
     var namePas_mean = ee.String("NdviPasRef_mean__").cat(month);
-    
-    
+
+
     feature = feature.set(
       nameAll_mean,stat_mean_all,
       nameCrop_mean,stat_mean_crop,
@@ -134,7 +127,7 @@ var ZonalStatsRef = function(feature) {
   }
 
     return feature;
-    
+
 }
 
 var mappedReduction = districts.map(ZonalStatsRef);

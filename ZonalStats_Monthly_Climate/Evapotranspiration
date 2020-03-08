@@ -15,28 +15,8 @@ var crop_dom = ee.Image("USGS/GFSAD1000_V0"),
 /***** End of imports. If edited, may not auto-convert in the playground. *****/
 //    1. ET_fall Mean
 //
-// var Ghana = ee.FeatureCollection('ft:1DQUmyrZjR2SQ6oDZ37MDvJBdBrFUnr6k6x_EH28H');
-// var all = ee.FeatureCollection('ft:17Mn6PoouIhN0FzbXcDMUsjQTOzc7uexFptArKVB1');
-// var g2_sim = ee.FeatureCollection('ft:1SwDJ-YIHeN2Lqv14pkBRlrWnpO7Vzq6bu90cEq2q');
-// var sahel_adm2 = ee.FeatureCollection('ft:1Km2OVbA2b7AhZfxMP0Pxq3xE3H-JS_3K6_OJ18V8');
-// var chirpsCol = ee.ImageCollection(CHIRPS_PENTAD).select('precipitation').filter(ee.Filter.calendarRange(2009, 2018, 'year'));
 var etCol = ee.ImageCollection(evapotranspiration).select('ET').filter(ee.Filter.calendarRange(2007, 2009, 'year'));
-// var gadm_adm2 = ee.FeatureCollection('ft:1GdU_RjSazVOZ587r6eQbOfJi3SsdwN8g9SbQ0x8l');
-// var Artemis_districts = ee.FeatureCollection('ft:1f6dIWPjdRWXvgGvm8V8xQNKS90BystFeh4ETKwKu');
-// var Yemen_districts = ee.FeatureCollection(yemen);
-// var districts = ee.FeatureCollection('users/afche18/Artemis_Merge');
-// var districts = ee.FeatureCollection('users/afche18/Artemis_Merge_May');
-// var districts = ee.FeatureCollection('users/afche18/Artemis_countries');
 var districts = ee.FeatureCollection('users/afche18/Artemis_21');
-
-
-// var districts_filt = districts.filter(ee.Filter.or(
-//   ee.Filter.eq('adm0_name','Somalia'),
-//   ee.Filter.eq('adm0_name','Mali'),
-//   ee.Filter.eq('adm0_name','Niger'),
-//   ee.Filter.eq('adm0_name','Chad'),
-//   ee.Filter.eq('adm0_name','South Sudan')
-//   ));
 
 // print(etCol);
 
@@ -63,7 +43,7 @@ var maskWatCol = function(image){
 //    3. Arrange by month/year pair
 
 var year_month = [];
-for (var y = 2007; y < 2009; y++){
+for (var y = 2009; y < 2020; y++){
   for (var m = 1; m < 13; m++){
     year_month.push([y,m]);
   }
@@ -92,8 +72,8 @@ var byYM_avg = ee.ImageCollection.fromImages(
 print(byYM_avg);
 
 var All_Avg_Monthly= byYM_avg.map(maskWatCol)
-// var Crop_Avg_Monthly= byYM_avg.map(maskCropCol)
-// var Pas_Avg_Monthly= byYM_avg.map(maskPasCol)
+var Crop_Avg_Monthly= byYM_avg.map(maskCropCol)
+var Pas_Avg_Monthly= byYM_avg.map(maskPasCol)
 
 // print(All_Avg_Monthly);
 // var one = All_Avg_Monthly.first();
@@ -133,28 +113,28 @@ var ZonalStats = function(feature) {
       maxPixels:10e15
     });
 
-    // var stat_mean_crop = image_crop_mean.reduceRegion({
-    //   reducer: ee.Reducer.mean(),
-    //   geometry: feature.geometry(),
-    //   scale: 500,
-    //   maxPixels:10e15
-    // });
+    var stat_mean_crop = image_crop_mean.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: feature.geometry(),
+      scale: 500,
+      maxPixels:10e15
+    });
 
-    // var stat_mean_pas = image_pas_mean.reduceRegion({
-    //   reducer: ee.Reducer.mean(),
-    //   geometry: feature.geometry(),
-    //   scale: 500,
-    //   maxPixels:10e15
-    // });
+    var stat_mean_pas = image_pas_mean.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: feature.geometry(),
+      scale: 500,
+      maxPixels:10e15
+    });
 
     var nameAll_mean = ee.String("ET_All_mean__").cat(year).cat("_").cat(month);
-    // var nameCrop_mean = ee.String("ET_Crop_mean__").cat(year).cat("_").cat(month);
-    // var namePas_mean = ee.String("ET_Pas_mean__").cat(year).cat("_").cat(month);
+    var nameCrop_mean = ee.String("ET_Crop_mean__").cat(year).cat("_").cat(month);
+    var namePas_mean = ee.String("ET_Pas_mean__").cat(year).cat("_").cat(month);
 
     feature = feature.set(
-      nameAll_mean,stat_mean_all.get('ET')
-      // nameCrop_mean,stat_mean_crop.get('ET'),
-      // namePas_mean,stat_mean_pas.get('ET')
+      nameAll_mean,stat_mean_all.get('ET'),
+      nameCrop_mean,stat_mean_crop.get('ET'),
+      namePas_mean,stat_mean_pas.get('ET')
     );
 
   }

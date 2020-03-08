@@ -465,7 +465,7 @@ var sentinel = ee.ImageCollection('COPERNICUS/S2')
   .filterBounds(bbox)
   .filterDate('2017-01-01','2017-12-31')
   .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 10));
-  
+
 print(sentinel);
 
 var rgbVis = {
@@ -523,7 +523,7 @@ var modis = terra.merge(aqua);
 
 // Functions applied to each image (add timetamp, source, and mask by cropland)
 var PrepareModis = function(image) {
-  
+
   return image.clip(bbox)
     .multiply(0.0001)
     .updateMask(crop_mask)
@@ -546,11 +546,11 @@ var reducer_pct = ee.Reducer.percentile([50,75,90]);
 //   sharedInputs: true
 // });
 
-// Get Zonal Stats 
+// Get Zonal Stats
 var ZonalStats = function(feature) {
-  
+
   for (var i = 0; i < 138; i++){
-    
+
     var image = ee.Image(images_list.get(i));
     var date = ee.String(image.get('date'));
 
@@ -561,26 +561,26 @@ var ZonalStats = function(feature) {
       scale: 250,
       maxPixels: 10e15
     });
-    
+
     var name_median = ee.String("median").cat("__").cat(date);
     var name_p75 = ee.String("p75").cat("__").cat(date);
     var name_p90 = ee.String("p90").cat("__").cat(date);
-    
+
     feature = feature.set(
       name_median, stats.get("NDVI_p50"),
       name_p75, stats.get("NDVI_p75"),
       name_p90, stats.get("NDVI_p90")
     );
-    
+
   }
-  
+
   return feature;
-  
+
 }
 
 var one_site = sites.filterMetadata('Id','equals',51);
 // print(one_site);
-// 
+//
 var mappedReduction = one_site.map(ZonalStats);
 print(mappedReduction);
 
@@ -625,4 +625,3 @@ print(mappedReduction);
 // for (var i = 0; i < length_treat_number; i++) {
 //     add feature type
 // }
-
