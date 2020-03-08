@@ -1,0 +1,132 @@
+/**** Start of imports. If edited, may not auto-convert in the playground. ****/
+var crop_dom = ee.Image("USGS/GFSAD1000_V0"),
+    crop_wat = ee.Image("USGS/GFSAD1000_V1"),
+    terra_annual = ee.ImageCollection("MODIS/006/MOD17A3H"),
+    aqua_annual = ee.ImageCollection("MODIS/006/MYD17A3H"),
+    terra_16day = ee.ImageCollection("MODIS/006/MOD13Q1"),
+    aqua_16day = ee.ImageCollection("MODIS/006/MYD13Q1"),
+    waterMask = ee.Image("MODIS/MOD44W/MOD44W_005_2000_02_24"),
+    noaa_daily = ee.ImageCollection("NOAA/CDR/AVHRR/NDVI/V4"),
+    CHIRPS_DAILY = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY"),
+    CHIRPS_PENTAD = ee.ImageCollection("UCSB-CHG/CHIRPS/PENTAD"),
+    pasture = ee.Image("users/afche18/pasture_fao"),
+    yemen = ee.FeatureCollection("users/afche18/Yemen_gadm2");
+/***** End of imports. If edited, may not auto-convert in the playground. *****/
+//    1. Import
+
+// var Ghana = ee.FeatureCollection('ft:1DQUmyrZjR2SQ6oDZ37MDvJBdBrFUnr6k6x_EH28H');
+// var all = ee.FeatureCollection('ft:17Mn6PoouIhN0FzbXcDMUsjQTOzc7uexFptArKVB1');
+// var g2_sim = ee.FeatureCollection('ft:1SwDJ-YIHeN2Lqv14pkBRlrWnpO7Vzq6bu90cEq2q');
+// var sahel_adm2 = ee.FeatureCollection('ft:1Km2OVbA2b7AhZfxMP0Pxq3xE3H-JS_3K6_OJ18V8');
+var chirpsCol = ee.ImageCollection(CHIRPS_PENTAD).select('precipitation').filter(ee.Filter.calendarRange(1981, 2019, 'year'));
+// var chirpsCol = ee.ImageCollection(CHIRPS_PENTAD).select('precipitation');
+// var gadm_adm2 = ee.FeatureCollection('ft:1GdU_RjSazVOZ587r6eQbOfJi3SsdwN8g9SbQ0x8l');
+// var Artemis_districts = ee.FeatureCollection('ft:1f6dIWPjdRWXvgGvm8V8xQNKS90BystFeh4ETKwKu');
+//var Yemen_districts = ee.FeatureCollection(yemen);
+// var districts = ee.FeatureCollection('users/afche18/GAUL_2_sel');
+var districts = ee.FeatureCollection('users/afche18/Artemis_Merge_May');
+//
+
+//    2. Mask cropland
+
+var crop_wat_mask = crop_wat.eq(0).or(waterMask.select('water_mask').eq(1));
+var pas_wat_mask = pasture.eq(0).or(waterMask.select('water_mask').eq(1));
+var wat_mask = waterMask.select('water_mask').eq(1);
+
+var maskCropCol = function(image){
+  return image.updateMask(crop_wat_mask.not()).set('month',image.get('month'));
+}
+
+var maskPasCol = function(image){
+  return image.updateMask(pas_wat_mask.not()).set('month',image.get('month'));
+}
+
+var maskWatCol = function(image){
+  return image.updateMask(wat_mask.not()).set('month',image.get('month'));
+}
+
+var months = ee.List.sequence(1, 12);
+
+// These are used for long term mean
+var byMonthRef = ee.ImageCollection.fromImages(
+      months.map(function (m) {
+        return chirpsCol.filter(ee.Filter.calendarRange(m, m, 'month'))
+                    .mean()
+                    .set('month', m);
+}));
+
+var refAll = byMonthRef.map(maskWatCol);
+var refCrop = byMonthRef.map(maskCropCol);
+var refPas = byMonthRef.map(maskPasCol);
+
+print(refAll);
+
+//    4. Reduce to region(s)
+
+var reducer_pct = ee.Reducer.percentile([25,75], null, null, null, null)
+
+// Combine the mean and standard deviation and pctiles reducers.
+var reducers = ee.Reducer.mean().combine({
+  reducer2: reducer_pct,
+  sharedInputs: true
+});
+
+
+var ZonalStatsRef = function(feature) {
+
+  //I don't know why maskedNDVI.length() is not working here
+  for (var i = 0; i < 12; i++) {
+
+    var i_string = ee.String(ee.Number(i));
+
+    var image_all_mean = ee.Image(refAll.filterMetadata('system:index','equals',i_string).first());
+    var image_crop_mean = ee.Image(refCrop.filterMetadata('system:index','equals',i_string).first());
+    var image_pas_mean = ee.Image(refPas.filterMetadata('system:index','equals',i_string).first());
+
+    var month = ee.String(ee.Number(image_all_mean.get('month')).int());
+
+    var stat_mean_all = image_all_mean.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: feature.geometry(),
+      scale: 1000,
+      maxPixels:10e15
+    });
+
+    var stat_mean_crop = image_crop_mean.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: feature.geometry(),
+      scale: 1000,
+      maxPixels:10e15
+    });
+
+    var stat_mean_pas = image_pas_mean.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: feature.geometry(),
+      scale: 1000,
+      maxPixels:10e15
+    });
+
+    var nameAll_mean = ee.String("RainAllRef_mean__").cat(month);
+    var nameCrop_mean = ee.String("RainCropRef_mean__").cat(month);
+    var namePas_mean = ee.String("RainPasRef_mean__").cat(month);
+
+    feature = feature.set(
+      nameAll_mean,stat_mean_all.get('precipitation'),
+      nameCrop_mean,stat_mean_crop.get('precipitation'),
+      namePas_mean,stat_mean_pas.get('precipitation')
+    );
+
+  }
+
+  return feature;
+
+}
+
+var mappedReduction = districts.map(ZonalStatsRef);
+// print(mappedReduction)
+
+Export.table.toDrive({
+  collection: mappedReduction,
+  description: 'Artemis_Merge_May_Rainfall_Ref',
+  fileFormat: 'CSV'
+});
