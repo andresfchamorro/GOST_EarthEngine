@@ -1,0 +1,64 @@
+
+// Create data source references
+// 
+// Ethiopia AOIs
+var AOIs = ee.FeatureCollection('users/afche18/Ethiopia_AOI');
+
+// NDVI Datasets
+var landsat = ee.ImageCollection('LANDSAT/LC08/C01/T1_8DAY_NDVI');
+// var landsat = ee.ImageCollection('LANDSAT/LC8_L1T_8DAY_NDVI').select('NDVI');
+
+// Crop mask product
+var cropland = ee.Image('USGS/GFSAD1000_V1');
+var crop_mask = cropland.eq(0);
+
+// .updateMask(crop_mask.not())
+var PrepareLandast = function(image) {
+  return image.clip(AOIs)
+  .set('date', image.date().format("YYYY_MM_dd"))
+  .set('source', 'landsat');
+};
+var landsat_clipped = landsat.map(PrepareLandast);
+
+// Find out how many images we have: 187
+var images_list = landsat_clipped.toList(landsat_clipped.size());
+print(images_list.length());
+
+// print(ee.Image(all_list.get(0)));
+
+// Get Zonal Stats 
+var ZonalStats = function(feature) {
+  
+  for (var i = 0; i < 298; i++){
+    
+    var image = ee.Image(images_list.get(i));
+    var date = ee.String(image.get('date'));
+    var source = ee.String(image.get('source'));
+    
+    // Just getting mean but could be combined reducer with percentiles/max
+    var stat_mean = image.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: feature.geometry(),
+      scale: 30,
+      maxPixels: 10e15
+    }).get('NDVI');
+    
+    var name_mean = ee.String("NDVI_").cat(source).cat("__").cat(date);
+    
+    feature = feature.set(
+      name_mean, stat_mean
+    );
+    
+  }
+  
+  return feature;
+  
+}
+
+var mappedReduction = AOIs.map(ZonalStats);
+
+Export.table.toDrive({
+  collection: mappedReduction,
+  description: 'Ethiopia_AOIs_NDVI_Landsat_CO1',
+  fileFormat: 'CSV'
+});
