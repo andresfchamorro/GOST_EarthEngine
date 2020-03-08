@@ -8,7 +8,7 @@ This repository contains resources and examples of our use of Google Earth Engin
     - *TimeSeries_Vegetation* (NDVI from different sources, NPP trend)
 
 2. Land cover classification
-    * CropClassification_BGD
+    - *CropClassification_BGD*
     
 3. Flood detection
 
