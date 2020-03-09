@@ -2,7 +2,8 @@
 // Create data source references
 //
 // Ethiopia AOIs
-var AOIs = ee.FeatureCollection('users/afche18/Ethiopia_AOI');
+var AOIs = ee.FeatureCollection('USDOS/LSIB_SIMPLE/2017')
+  .filter(ee.Filter.eq('country_na', 'Ethiopia'));
 
 // NDVI Datasets
 var terra = ee.ImageCollection('MODIS/006/MOD13Q1').select('NDVI').filter(ee.Filter.calendarRange(2012, 2020, 'year'));
@@ -24,6 +25,7 @@ var modis_clipped = modis.map(PrepareModis);
 
 // Find out how many images we have: 187
 var images_list = modis_clipped.toList(modis_clipped.size());
+var n_images = images_list.getInfo();
 print(images_list.length());
 
 // Get Zonal Stats 
